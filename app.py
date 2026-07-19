@@ -99,8 +99,8 @@ ASPECT_RATIOS = {
 }
 
 QUALITY_MODES = {
-    "⚡ Fast (kam detail, tez)": "black-forest-labs/FLUX.1-schnell",
-    "💎 High Quality (zyada detail, thoda slow)": "black-forest-labs/FLUX.1-dev"
+    "⚡ Fast (kam detail, tez)": "stabilityai/stable-diffusion-2-1",
+    "💎 High Quality (zyada detail, thoda slow)": "CompVis/stable-diffusion-v1-4"
 }
 
 col1, col2 = st.columns(2)
