@@ -1,4 +1,4 @@
-Import streamlit as st
+import streamlit as st
 import io
 import random
 from PIL import Image
