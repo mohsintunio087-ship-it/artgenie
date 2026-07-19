@@ -1,4 +1,4 @@
-import streamlit as st
+Import streamlit as st
 import io
 import random
 from PIL import Image
@@ -99,8 +99,8 @@ ASPECT_RATIOS = {
 }
 
 QUALITY_MODES = {
-    "⚡ Fast (kam detail, tez)": "OFA-Sys/small-stable-diffusion-v0",
-    "💎 High Quality (zyada detail, thoda slow)": "Lykon/DreamShaper"
+    "⚡ Fast (kam detail, tez)": "black-forest-labs/FLUX.1-schnell",
+    "💎 High Quality (zyada detail, thoda slow)": "black-forest-labs/FLUX.1-dev"
 }
 
 col1, col2 = st.columns(2)
