@@ -1,8 +1,9 @@
 import streamlit as st
 import io
 import random
+import urllib.parse
+import requests
 from PIL import Image
-from huggingface_hub import InferenceClient
 
 icon = Image.open("icon.png")
 st.set_page_config(page_title="ArtGenie Pro", page_icon=icon, layout="centered")
