@@ -119,49 +119,53 @@ with col4:
     st.write("")
     randomize = st.checkbox("Random", value=True)
 
+import urllib.parse
+
 if st.button("🚀 Generate"):
     if not prompt:
         st.warning("⚠️ Pehle prompt likhen (Aap kya banana chahte hain)!")
     else:
         final_prompt = f"{prompt}{STYLE_PRESETS[selected_style]}"
         width, height = ASPECT_RATIOS[selected_ratio]
-        selected_model = QUALITY_MODES[selected_quality]
 
         with st.spinner("✨ AI aapki image generate kar raha hai... thoda time lag sakta hai"):
             try:
-                client = InferenceClient(api_key=st.secrets["HF_TOKEN"])
                 generated_images = []
 
                 for i in range(num_images):
                     current_seed = random.randint(0, 999999) if randomize else seed_input + i
 
-                    kwargs = {
-                        "model": selected_model,
-                        "width": width,
-                        "height": height,
-                        "seed": current_seed
-                    }
+                    encoded_prompt = urllib.parse.quote(final_prompt)
+                    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={current_seed}&nologo=true"
+
                     if negative_prompt:
-                        kwargs["negative_prompt"] = negative_prompt
+                        url += f"&negative_prompt={urllib.parse.quote(negative_prompt)}"
 
-                    result_image = client.text_to_image(final_prompt, **kwargs)
-                    generated_images.append(result_image)
-                    st.session_state.history.append(result_image)
+                    import requests
+                    response = requests.get(url, timeout=60)
 
-                st.markdown("### ✨ Generated Images")
-                cols = st.columns(min(num_images, 2))
-                for idx, img in enumerate(generated_images):
-                    with cols[idx % len(cols)]:
-                        st.image(img, caption=f"ArtGenie Output {idx+1}", use_container_width=True)
-                        buf = io.BytesIO()
-                        img.save(buf, format="PNG")
-                        st.download_button(
-                            label=f"⬇️ Download {idx+1}",
-                            data=buf.getvalue(),
-                            file_name=f"generated_image_{idx+1}.png",
-                            mime="image/png",
-                            key=f"download_{idx}"
-                        )
+                    if response.status_code == 200:
+                        result_image = Image.open(io.BytesIO(response.content))
+                        generated_images.append(result_image)
+                        st.session_state.history.append(result_image)
+                    else:
+                        st.error(f"⚠️ Error: Response code {response.status_code}")
+
+                if generated_images:
+                    st.markdown("### ✨ Generated Images")
+                    cols = st.columns(min(len(generated_images), 2))
+                    for idx, img in enumerate(generated_images):
+                        with cols[idx % len(cols)]:
+                            st.image(img, caption=f"ArtGenie Output {idx+1}", use_container_width=True)
+                            buf = io.BytesIO()
+                            img.save(buf, format="PNG")
+                            st.download_button(
+                                label=f"⬇️ Download {idx+1}",
+                                data=buf.getvalue(),
+                                file_name=f"generated_image_{idx+1}.png",
+                                mime="image/png",
+                                key=f"download_{idx}"
+                            )
 
             except Exception as e:
                 st.error(f"⚠️ Error: {str(e)}. Ek dafa aur try karein ya thodi der wait karein.")
