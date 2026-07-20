@@ -4,34 +4,31 @@ import random
 import urllib.parse
 import requests
 from PIL import Image
+from huggingface_hub import InferenceClient
 
 icon = Image.open("icon.png")
 st.set_page_config(page_title="ArtGenie Pro", page_icon=icon, layout="centered")
 
-# ---------- CUSTOM THEME / CSS ----------
 st.markdown("""
 <style>
     .stApp {
         background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 50%, #7e22ce 100%);
     }
-    .main .block-container {
-        padding-top: 2rem;
-    }
+    .main .block-container { padding-top: 2rem; }
     h1 {
         color: #ffffff !important;
         text-align: center;
         font-weight: 800 !important;
         text-shadow: 0px 0px 20px rgba(168, 85, 247, 0.6);
     }
-    p, label, .stMarkdown {
-        color: #e9d5ff !important;
-    }
+    p, label, .stMarkdown { color: #e9d5ff !important; }
     .stTextArea textarea, .stTextInput input {
-        background-color: rgba(255, 255, 255, 0.08) !important;
+        background-color: rgba(255, 255, 255, 0.9) !important;
         color: #000000 !important;
         border: 1px solid rgba(168, 85, 247, 0.5) !important;
         border-radius: 12px !important;
     }
+    .stTextArea textarea::placeholder, .stTextInput input::placeholder { color: #6b7280 !important; }
     .stSelectbox div[data-baseweb="select"] {
         background-color: rgba(255, 255, 255, 0.08) !important;
         border-radius: 12px !important;
@@ -99,18 +96,13 @@ ASPECT_RATIOS = {
     "Wide (21:9)": (1536, 640)
 }
 
-QUALITY_MODES = {
-    "⚡ Fast (kam detail, tez)": "black-forest-labs/FLUX.1-schnell",
-    "💎 High Quality (zyada detail, thoda slow)": "black-forest-labs/FLUX.1-dev"
-}
-
 col1, col2 = st.columns(2)
 with col1:
     selected_style = st.selectbox("🎨 Style Preset:", list(STYLE_PRESETS.keys()))
     selected_ratio = st.selectbox("📐 Image Size/Ratio:", list(ASPECT_RATIOS.keys()))
 with col2:
-    selected_quality = st.selectbox("⚙️ Quality Mode:", list(QUALITY_MODES.keys()))
     num_images = st.selectbox("🖼️ Kitni Images chahiye:", [1, 2, 3, 4])
+    selected_model = st.selectbox("🤖 Model:", ["flux", "turbo"])
 
 col3, col4 = st.columns([3, 1])
 with col3:
@@ -120,56 +112,77 @@ with col4:
     st.write("")
     randomize = st.checkbox("Random", value=True)
 
-import urllib.parse
+
+def generate_with_pollinations(final_prompt, width, height, seed, negative, model="flux"):
+    encoded_prompt = urllib.parse.quote(final_prompt)
+    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={seed}&nologo=true&enhance=true&model={model}"
+    url += f"&negative_prompt={urllib.parse.quote(negative)}"
+    response = requests.get(url, timeout=60)
+    if response.status_code == 200:
+        return Image.open(io.BytesIO(response.content))
+    return None
+
 
 if st.button("🚀 Generate"):
     if not prompt:
         st.warning("⚠️ Pehle prompt likhen (Aap kya banana chahte hain)!")
     else:
-        final_prompt = f"{prompt}{STYLE_PRESETS[selected_style]}"
+        final_prompt = (
+            f"{prompt}{STYLE_PRESETS[selected_style]}, ultra detailed, sharp focus, high quality, "
+            f"professional photography, masterpiece, detailed facial features, symmetrical face, "
+            f"natural skin texture, sharp eyes, 85mm lens, DSLR photograph"
+        )
         width, height = ASPECT_RATIOS[selected_ratio]
 
+        default_negative = "deformed hands, extra fingers, missing fingers, mutated hands, bad anatomy, distorted face, cross-eyed, blurry face, disfigured"
+        combined_negative = f"{negative_prompt}, {default_negative}" if negative_prompt else default_negative
+
         with st.spinner("✨ AI aapki image generate kar raha hai... thoda time lag sakta hai"):
-            try:
-                generated_images = []
+            generated_images = []
+            engine_used = None
 
-                for i in range(num_images):
-                    current_seed = random.randint(0, 999999) if randomize else seed_input + i
+            for i in range(num_images):
+                current_seed = random.randint(0, 999999) if randomize else seed_input + i
+                result_image = None
 
-                    encoded_prompt = urllib.parse.quote(final_prompt)
-                    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&seed={current_seed}&nologo=true"
+                try:
+                    client = InferenceClient(api_key=st.secrets["HF_TOKEN"])
+                    result_image = client.text_to_image(
+                        final_prompt,
+                        model="black-forest-labs/FLUX.1-dev",
+                        width=width,
+                        height=height,
+                        seed=current_seed
+                    )
+                    engine_used = "Hugging Face (High Quality)"
+                except Exception as hf_error:
+                    result_image = generate_with_pollinations(
+                        final_prompt, width, height, current_seed, combined_negative, selected_model
+                    )
+                    engine_used = f"Pollinations - {selected_model} (Backup)"
 
-                    if negative_prompt:
-                        url += f"&negative_prompt={urllib.parse.quote(negative_prompt)}"
+                if result_image is not None:
+                    generated_images.append(result_image)
+                    st.session_state.history.append(result_image)
 
-                    import requests
-                    response = requests.get(url, timeout=60)
-
-                    if response.status_code == 200:
-                        result_image = Image.open(io.BytesIO(response.content))
-                        generated_images.append(result_image)
-                        st.session_state.history.append(result_image)
-                    else:
-                        st.error(f"⚠️ Error: Response code {response.status_code}")
-
-                if generated_images:
-                    st.markdown("### ✨ Generated Images")
-                    cols = st.columns(min(len(generated_images), 2))
-                    for idx, img in enumerate(generated_images):
-                        with cols[idx % len(cols)]:
-                            st.image(img, caption=f"ArtGenie Output {idx+1}", use_container_width=True)
-                            buf = io.BytesIO()
-                            img.save(buf, format="PNG")
-                            st.download_button(
-                                label=f"⬇️ Download {idx+1}",
-                                data=buf.getvalue(),
-                                file_name=f"generated_image_{idx+1}.png",
-                                mime="image/png",
-                                key=f"download_{idx}"
-                            )
-
-            except Exception as e:
-                st.error(f"⚠️ Error: {str(e)}. Ek dafa aur try karein ya thodi der wait karein.")
+            if generated_images:
+                st.info(f"🔧 Engine used: {engine_used}")
+                st.markdown("### ✨ Generated Images")
+                cols = st.columns(min(len(generated_images), 2))
+                for idx, img in enumerate(generated_images):
+                    with cols[idx % len(cols)]:
+                        st.image(img, caption=f"ArtGenie Output {idx+1}", use_container_width=True)
+                        buf = io.BytesIO()
+                        img.save(buf, format="PNG")
+                        st.download_button(
+                            label=f"⬇️ Download {idx+1}",
+                            data=buf.getvalue(),
+                            file_name=f"generated_image_{idx+1}.png",
+                            mime="image/png",
+                            key=f"download_{idx}"
+                        )
+            else:
+                st.error("⚠️ Dono engines fail ho gaye. Thodi der baad try karein.")
 
 if len(st.session_state.history) > 1:
     st.markdown("---")
@@ -180,3 +193,17 @@ if len(st.session_state.history) > 1:
             break
         with cols[i % 3]:
             st.image(img, use_container_width=True)
+st.markdown("""
+<style>
+    .footer-credit {
+        position: fixed;
+        bottom: 10px;
+        right: 15px;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 13px;
+        font-style: italic;
+        z-index: 100;
+    }
+</style>
+<div class="footer-credit">Made by Mohsin Kamran</div>
+""", unsafe_allow_html=True)
