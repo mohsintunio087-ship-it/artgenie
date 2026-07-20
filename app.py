@@ -198,7 +198,7 @@ st.markdown("""
     .footer-credit {
         position: fixed;
         bottom: 10px;
-        right: 15px;
+        left: 15px;
         color: rgba(255, 255, 255, 0.9);
         font-size: 13px;
         font-style: italic;
